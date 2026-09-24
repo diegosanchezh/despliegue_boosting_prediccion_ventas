@@ -16,222 +16,84 @@ Original file is located at
 
 import numpy as np
 import pandas as pd
-import matplotlib.pyplot as plt
 import streamlit as st
-
-#Cargamos el modelo
 import pickle
+
+# 1. Carga del modelo (fuera de funciones para aprovechar caché si se mejora después)
 filename = 'modelo-ensamble-reg.pkl'
 modelo, min_max_scaler, variables = pickle.load(open(filename, 'rb'))
-modelo
-
-# data = pd.read_csv("DATOS_FUTUROS.CSV")
-# data.head()
 
 st.title('Predicción de ventas por asesor')
 
 # --- Variables numéricas ---
-edad_asesor = st.slider(
-    'Edad del asesor', min_value=14.0, max_value=57.0, value=29.0, step=1.0
-)
-total_dias_absentismo = st.slider(
-    'Total días absentismo', min_value=0.0, max_value=31.0, value=0.0, step=1.0
-)
-cantidad_cajas = st.slider(
-    'Cantidad de cajas', min_value=1.0, max_value=4.0, value=2.0, step=1.0
-)
-metros_cuadrados_tienda = st.number_input(
-    'Metros cuadrados de la tienda',
-    min_value=50.0,
-    max_value=329.0,
-    value=150.0,
-)
+edad_asesor = st.slider('Edad del asesor', min_value=14.0, max_value=57.0, value=29.0, step=1.0)
+total_dias_absentismo = st.slider('Total días absentismo', min_value=0.0, max_value=31.0, value=0.0, step=1.0)
+cantidad_cajas = st.slider('Cantidad de cajas', min_value=1.0, max_value=4.0, value=2.0, step=1.0)
+metros_cuadrados_tienda = st.number_input('Metros cuadrados de la tienda', min_value=50.0, max_value=329.0, value=150.0)
 
 # Ventas históricas
-venta_t_1 = st.number_input(
-    'Venta mes t-1', min_value=0.0, value=0.0, step=100000.0
-)
-venta_t_2 = st.number_input(
-    'Venta mes t-2', min_value=0.0, value=0.0, step=100000.0
-)
-venta_t_3 = st.number_input(
-    'Venta mes t-3', min_value=0.0, value=0.0, step=100000.0
-)
+venta_t_1 = st.number_input('Venta mes t-1', min_value=0.0, value=0.0, step=100000.0)
+venta_t_2 = st.number_input('Venta mes t-2', min_value=0.0, value=0.0, step=100000.0)
+venta_t_3 = st.number_input('Venta mes t-3', min_value=0.0, value=0.0, step=100000.0)
 
 # --- Variables categóricas ---
 genero_asesor = st.selectbox('Género del asesor', ['F', 'M'])
 tipo_vinculacion = st.selectbox('Tipo de vinculación', ['INDEF', 'OBRA'])
-nacionalidad_asesor = st.selectbox(
-    'Nacionalidad del asesor', ['COLOMBIA', 'EXTRANJERO', 'VENEZUELA']
-)
-tipo_ubicacion_tienda = st.selectbox(
-    'Tipo ubicación tienda', ['CENTRO COMERCIAL', 'EXTERIOR']
-)
-marca = st.selectbox(
-    'Marca', ['MARCA_A', 'MARCA_B', 'MARCA_C', 'MARCA_D']
-)
-zona_comercial = st.selectbox(
-    'Zona comercial',
-    [
-        'MEDELLIN',
-        'BOGOTA',
-        'CALI',
-        'CARTAGENA',
-        'BARRANQUILLA',
-        'OTRA_ZONA',
-    ],
-)
-mes_venta = st.selectbox(
-    'Mes de venta',
-    [
-        'ENERO',
-        'FEBRERO',
-        'MARZO',
-        'ABRIL',
-        'MAYO',
-        'JUNIO',
-        'JULIO',
-        'AGOSTO',
-        'SEPTIEMBRE',
-        'OCTUBRE',
-        'NOVIEMBRE',
-        'DICIEMBRE',
-    ],
-)
+nacionalidad_asesor = st.selectbox('Nacionalidad del asesor', ['COLOMBIA', 'EXTRANJERO', 'VENEZUELA'])
+tipo_ubicacion_tienda = st.selectbox('Tipo ubicación tienda', ['CENTRO COMERCIAL', 'EXTERIOR'])
+marca = st.selectbox('Marca', ['MARCA_A', 'MARCA_B', 'MARCA_C', 'MARCA_D'])
+zona_comercial = st.selectbox('Zona comercial', ['MEDELLIN', 'BOGOTA', 'CALI', 'CARTAGENA', 'BARRANQUILLA', 'OTRA_ZONA'])
+mes_venta = st.selectbox('Mes de venta', ['ENERO', 'FEBRERO', 'MARZO', 'ABRIL', 'MAYO', 'JUNIO', 'JULIO', 'AGOSTO', 'SEPTIEMBRE', 'OCTUBRE', 'NOVIEMBRE', 'DICIEMBRE'])
 
-# Dataframe de entrada para la predicción
-datos = [[
-    genero_asesor,
-    edad_asesor,
-    tipo_vinculacion,
-    nacionalidad_asesor,
-    total_dias_absentismo,
-    tipo_ubicacion_tienda,
-    marca,
-    zona_comercial,
-    cantidad_cajas,
-    metros_cuadrados_tienda,
-    mes_venta,
-    venta_t_1,
-    venta_t_2,
-    venta_t_3,
-]]
+# 2. Control de ejecución mediante botón
+if st.button('Generar Predicción'):
+    
+    # Dataframe de entrada
+    datos = [[genero_asesor, edad_asesor, tipo_vinculacion, nacionalidad_asesor, total_dias_absentismo,
+              tipo_ubicacion_tienda, marca, zona_comercial, cantidad_cajas, metros_cuadrados_tienda,
+              mes_venta, venta_t_1, venta_t_2, venta_t_3]]
+    
+    columnas_entrada = ['genero_asesor', 'edad_asesor', 'tipo_vinculacion', 'nacionalidad_asesor',
+                        'total_dias_absentismo', 'tipo_ubicacion_tienda', 'marca', 'zona_comercial',
+                        'cantidad_cajas', 'metros_cuadrados_tienda', 'mes_venta', 'venta_t_1',
+                        'venta_t_2', 'venta_t_3']
+    
+    data = pd.DataFrame(datos, columns=columnas_entrada)
 
-data = pd.DataFrame(
-    datos,
-    columns=[
-        'genero_asesor',
-        'edad_asesor',
-        'tipo_vinculacion',
-        'nacionalidad_asesor',
-        'total_dias_absentismo',
-        'tipo_ubicacion_tienda',
-        'marca',
-        'zona_comercial',
-        'cantidad_cajas',
-        'metros_cuadrados_tienda',
-        'mes_venta',
-        'venta_t_1',
-        'venta_t_2',
-        'venta_t_3',
-    ],
-)
+    # Preparación de datos
+    data_preparada = pd.get_dummies(data, columns=['genero_asesor', 'tipo_vinculacion', 'nacionalidad_asesor',
+                                                   'tipo_ubicacion_tienda', 'marca', 'zona_comercial', 'mes_venta'],
+                                    drop_first=False, dtype=int)
 
-# preparación datos
-# creacion dummies
+    # Alinear columnas con el entrenamiento
+    data_preparada = data_preparada.reindex(columns=variables, fill_value=0)
 
-# Se realiza la preparación de datos
-data_preparada = data.copy()
+    # Escalar variables numéricas
+    data_preparada['valor_venta_asesor_mes_t'] = 0.0
+    col_numericas = ['edad_asesor', 'total_dias_absentismo', 'cantidad_cajas', 'metros_cuadrados_tienda',
+                     'venta_t_1', 'venta_t_2', 'venta_t_3', 'valor_venta_asesor_mes_t']
+    
+    data_preparada[col_numericas] = min_max_scaler.transform(data_preparada[col_numericas])
 
-# En despliegue drop_first= False
-data_preparada = pd.get_dummies(
-    data_preparada,
-    columns=[
-        'genero_asesor',
-        'tipo_vinculacion',
-        'nacionalidad_asesor',
-        'tipo_ubicacion_tienda',
-        'marca',
-        'zona_comercial',
-        'mes_venta',
-    ],
-    drop_first=False,
-    dtype=int,
-)
+    # 📌 ELIMINAR LA VARIABLE OBJETIVO ANTES DE PREDECIR (Corrección del Error 1)
+    data_preparada = data_preparada.drop(columns=['valor_venta_asesor_mes_t'])
 
-data_preparada.head()
+    # Predicción
+    Y_pred_normalizado = modelo.predict(data_preparada)
 
-# Alinear exactamente las columnas de despliegue con las de entrenamiento
-# 'variables' contiene la lista oficial de columnas con las que se entrenó el modelo
+    # Des-normalizar
+    temp_array = np.zeros((len(Y_pred_normalizado), len(col_numericas)))
+    indice_target = col_numericas.index('valor_venta_asesor_mes_t')
+    temp_array[:, indice_target] = Y_pred_normalizado
+    temp_array_inverso = min_max_scaler.inverse_transform(temp_array)
+    Y_pred_pesos = temp_array_inverso[:, indice_target]
 
-# reindex automáticamente elimina columnas sobrantes (como las dummies omitidas),
-# agrega las faltantes con valor 0 y garantiza el orden exacto para evitar errores de predicción.
-data_preparada = data_preparada.reindex(columns=variables, fill_value=0)
+    # 📌 MOSTRAR RESULTADOS EN LA INTERFAZ (Corrección del Error 2)
+    st.success(f"Predicción generada con éxito")
+    st.metric(label="Venta Estimada (Pesos COP)", value=f"${Y_pred_pesos[0]:,.2f}")
+    
+    # Mostrar el dataframe enriquecido
+    data['Prediccion'] = Y_pred_pesos
+    st.dataframe(data)
 
-data_preparada.head()
-
-# En los despliegues NO se llama .fit(), solo .transform()
-
-# Agregamos temporalmente la variable objetivo en 0 ya que el scaler la exige para la transformación
-data_preparada['valor_venta_asesor_mes_t'] = 0.0
-
-# Lista de variables numéricas a normalizar en data_preparada
-col_numericas = [
-    'edad_asesor',
-    'total_dias_absentismo',
-    'cantidad_cajas',
-    'metros_cuadrados_tienda',
-    'venta_t_1',
-    'venta_t_2',
-    'venta_t_3',
-    'valor_venta_asesor_mes_t'
-]
-
-# Se aplica el transform con el min_max_scaler del nuevo archivo .pkl
-data_preparada[col_numericas] = min_max_scaler.transform(
-    data_preparada[col_numericas]
-)
-
-data_preparada.head()
-
-"""After scaling, we must remove the target variable `valor_venta_asesor_mes_t` from the feature set before making predictions, as it should not be an input to the model.
-
-PREDICCIONES
-"""
-
-# Hacemos la predicción con el modelo
-Y_pred_normalizado = modelo.predict(data_preparada)
-
-# Como la variable objetivo fue normalizada durante el entrenamiento,
-# la predicción también está en esa escala. Necesitamos des-normalizarla.
-import numpy as np
-
-# Creamos un array con ceros del mismo tamaño que las variables numéricas originales
-temp_array = np.zeros((len(Y_pred_normalizado), len(col_numericas)))
-
-# Encontramos la posición de la variable objetivo en el scaler
-indice_target = col_numericas.index('valor_venta_asesor_mes_t')
-
-# Colocamos nuestra predicción en la columna correspondiente al target
-temp_array[:, indice_target] = Y_pred_normalizado
-
-# Aplicamos la transformación inversa para volver a los pesos originales
-temp_array_inverso = min_max_scaler.inverse_transform(temp_array)
-
-# Extraemos la predicción ya en pesos
-Y_pred_pesos = temp_array_inverso[:, indice_target]
-
-print(f"Predicción normalizada: {Y_pred_normalizado[0]:.4f}")
-print(f"Predicción en pesos (valor real): ${Y_pred_pesos[0]:,.2f}")
-
-# Guardamos el valor real para que se muestre en la tabla final
-Y_pred = Y_pred_pesos
-
-# esto es para que al final se vea la prediccion
-data['Prediccion']=Y_pred
-data.head()
-
-data
-
-# Recordar medida de error del modelo
 st.warning("Se selecciona el MAE y se descarta el MAPE porque la variable objetivo contiene meses donde las ventas fueron cero, este modelo tiene un error de 3.58%")
