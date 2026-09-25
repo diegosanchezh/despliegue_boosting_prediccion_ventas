@@ -14,29 +14,35 @@ Original file is located at
 - Aplicamos el modelo para la predicción
 """
 
+pip install streamlit
+
 import numpy as np
 import pandas as pd
+import matplotlib.pyplot as plt
 import streamlit as st
+
+#Cargamos el modelo
 import pickle
 
-# 1. Carga del modelo (fuera de funciones para aprovechar caché si se mejora después)
 filename = 'modelo-ensamble-reg.pkl'
 modelo, min_max_scaler, variables = pickle.load(open(filename, 'rb'))
+modelo
+
+# data = pd.read_csv("DATOS_FUTUROS.CSV")
+# data.head()
 
 st.title('Predicción de ventas por asesor')
 
-# --- Variables numéricas ---
+# --- Controles de Interfaz ---
 edad_asesor = st.slider('Edad del asesor', min_value=14.0, max_value=57.0, value=29.0, step=1.0)
 total_dias_absentismo = st.slider('Total días absentismo', min_value=0.0, max_value=31.0, value=0.0, step=1.0)
 cantidad_cajas = st.slider('Cantidad de cajas', min_value=1.0, max_value=4.0, value=2.0, step=1.0)
 metros_cuadrados_tienda = st.number_input('Metros cuadrados de la tienda', min_value=50.0, max_value=329.0, value=150.0)
 
-# Ventas históricas
 venta_t_1 = st.number_input('Venta mes t-1', min_value=0.0, value=0.0, step=100000.0)
 venta_t_2 = st.number_input('Venta mes t-2', min_value=0.0, value=0.0, step=100000.0)
 venta_t_3 = st.number_input('Venta mes t-3', min_value=0.0, value=0.0, step=100000.0)
 
-# --- Variables categóricas ---
 genero_asesor = st.selectbox('Género del asesor', ['F', 'M'])
 tipo_vinculacion = st.selectbox('Tipo de vinculación', ['INDEF', 'OBRA'])
 nacionalidad_asesor = st.selectbox('Nacionalidad del asesor', ['COLOMBIA', 'EXTRANJERO', 'VENEZUELA'])
@@ -45,55 +51,41 @@ marca = st.selectbox('Marca', ['MARCA_A', 'MARCA_B', 'MARCA_C', 'MARCA_D'])
 zona_comercial = st.selectbox('Zona comercial', ['MEDELLIN', 'BOGOTA', 'CALI', 'CARTAGENA', 'BARRANQUILLA', 'OTRA_ZONA'])
 mes_venta = st.selectbox('Mes de venta', ['ENERO', 'FEBRERO', 'MARZO', 'ABRIL', 'MAYO', 'JUNIO', 'JULIO', 'AGOSTO', 'SEPTIEMBRE', 'OCTUBRE', 'NOVIEMBRE', 'DICIEMBRE'])
 
-# 2. Control de ejecución mediante botón
-if st.button('Generar Predicción'):
-    
-    # Dataframe de entrada
-    datos = [[genero_asesor, edad_asesor, tipo_vinculacion, nacionalidad_asesor, total_dias_absentismo,
-              tipo_ubicacion_tienda, marca, zona_comercial, cantidad_cajas, metros_cuadrados_tienda,
-              mes_venta, venta_t_1, venta_t_2, venta_t_3]]
-    
+if st.button('Calcular Predicción'):
+
+    # 1. Empaquetar captura y estandarizar mayúsculas vectorialmente
     columnas_entrada = ['genero_asesor', 'edad_asesor', 'tipo_vinculacion', 'nacionalidad_asesor',
                         'total_dias_absentismo', 'tipo_ubicacion_tienda', 'marca', 'zona_comercial',
                         'cantidad_cajas', 'metros_cuadrados_tienda', 'mes_venta', 'venta_t_1',
                         'venta_t_2', 'venta_t_3']
-    
+
+    datos = [[genero_asesor, edad_asesor, tipo_vinculacion, nacionalidad_asesor, total_dias_absentismo,
+              tipo_ubicacion_tienda, marca, zona_comercial, cantidad_cajas, metros_cuadrados_tienda,
+              mes_venta, venta_t_1, venta_t_2, venta_t_3]]
+
     data = pd.DataFrame(datos, columns=columnas_entrada)
 
-    # Preparación de datos
-    data_preparada = pd.get_dummies(data, columns=['genero_asesor', 'tipo_vinculacion', 'nacionalidad_asesor',
-                                                   'tipo_ubicacion_tienda', 'marca', 'zona_comercial', 'mes_venta'],
-                                    drop_first=False, dtype=int)
+    columnas_cat = ['genero_asesor', 'tipo_vinculacion', 'nacionalidad_asesor', 'tipo_ubicacion_tienda', 'marca', 'zona_comercial', 'mes_venta']
+    data[columnas_cat] = data[columnas_cat].apply(lambda x: x.astype(str).str.upper())
 
-    # Alinear columnas con el entrenamiento
+    # 2. Recrear estado de dummies y alinear con el modelo entrenado
+    data_preparada = pd.get_dummies(data, columns=columnas_cat, drop_first=False, dtype=int)
     data_preparada = data_preparada.reindex(columns=variables, fill_value=0)
 
-    # Escalar variables numéricas
+    # 3. Manejo de escalador acoplado a la variable objetivo
     data_preparada['valor_venta_asesor_mes_t'] = 0.0
-    col_numericas = ['edad_asesor', 'total_dias_absentismo', 'cantidad_cajas', 'metros_cuadrados_tienda',
-                     'venta_t_1', 'venta_t_2', 'venta_t_3', 'valor_venta_asesor_mes_t']
-    
+    col_numericas = ['edad_asesor', 'total_dias_absentismo', 'cantidad_cajas', 'metros_cuadrados_tienda', 'venta_t_1', 'venta_t_2', 'venta_t_3', 'valor_venta_asesor_mes_t']
     data_preparada[col_numericas] = min_max_scaler.transform(data_preparada[col_numericas])
 
-    # 📌 ELIMINAR LA VARIABLE OBJETIVO ANTES DE PREDECIR (Corrección del Error 1)
-    data_preparada = data_preparada.drop(columns=['valor_venta_asesor_mes_t'])
+    # 4. Inferencia
+    X_inferencia = data_preparada.drop(columns=['valor_venta_asesor_mes_t'])
+    Y_pred_normalizado = modelo.predict(X_inferencia)
 
-    # Predicción
-    Y_pred_normalizado = modelo.predict(data_preparada)
-
-    # Des-normalizar
+    # 5. Transformación inversa
     temp_array = np.zeros((len(Y_pred_normalizado), len(col_numericas)))
     indice_target = col_numericas.index('valor_venta_asesor_mes_t')
     temp_array[:, indice_target] = Y_pred_normalizado
-    temp_array_inverso = min_max_scaler.inverse_transform(temp_array)
-    Y_pred_pesos = temp_array_inverso[:, indice_target]
+    Y_pred_pesos = min_max_scaler.inverse_transform(temp_array)[:, indice_target]
 
-    # 📌 MOSTRAR RESULTADOS EN LA INTERFAZ (Corrección del Error 2)
-    st.success(f"Predicción generada con éxito")
-    st.metric(label="Venta Estimada (Pesos COP)", value=f"${Y_pred_pesos[0]:,.2f}")
-    
-    # Mostrar el dataframe enriquecido
-    data['Prediccion'] = Y_pred_pesos
-    st.dataframe(data)
-
-st.warning("Se selecciona el MAE y se descarta el MAPE porque la variable objetivo contiene meses donde las ventas fueron cero, este modelo tiene un error de 3.58%")
+    st.success(f"Predicción en pesos (valor real): ${Y_pred_pesos[0]:,.2f}")
+    st.warning("Se selecciona el MAE y se descarta el MAPE porque la variable objetivo contiene meses donde las ventas fueron cero, este modelo tiene un error de 3.58%")
