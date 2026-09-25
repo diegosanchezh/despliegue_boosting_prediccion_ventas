@@ -14,7 +14,7 @@ Original file is located at
 - Aplicamos el modelo para la predicción
 """
 
-pip install streamlit
+# pip install streamlit
 
 import numpy as np
 import pandas as pd
