@@ -14,6 +14,8 @@ Original file is located at
 - Aplicamos el modelo para la predicción
 """
 
+pip install streamlit
+
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
@@ -22,9 +24,10 @@ import streamlit as st
 #Cargamos el modelo
 import pickle
 
-filename = 'modelo-ensamble-reg.pkl'
-modelo, min_max_scaler, variables = pickle.load(open(filename, 'rb'))
-modelo
+filename = 'modelo-gboosting-reg.pkl'
+with open(filename, 'rb') as f:
+    modelo_gbc, variables_entrenamiento, min_max_scaler = pickle.load(f)
+modelo_gbc
 
 # data = pd.read_csv("DATOS_FUTUROS.CSV")
 # data.head()
@@ -66,24 +69,24 @@ if st.button('Calcular Predicción'):
     columnas_cat = ['genero_asesor', 'tipo_vinculacion', 'nacionalidad_asesor', 'tipo_ubicacion_tienda', 'marca', 'zona_comercial', 'mes_venta']
     data[columnas_cat] = data[columnas_cat].apply(lambda x: x.astype(str).str.upper())
 
-    # 2. Recrear estado de dummies y alinear con el modelo entrenado
+    # 2. Recrear estado de dummies y alinear estrictamente con el modelo GBoosting
     data_preparada = pd.get_dummies(data, columns=columnas_cat, drop_first=False, dtype=int)
-    data_preparada = data_preparada.reindex(columns=variables, fill_value=0)
+    data_preparada = data_preparada.reindex(columns=variables_entrenamiento, fill_value=0)
 
     # 3. Manejo de escalador acoplado a la variable objetivo
     data_preparada['valor_venta_asesor_mes_t'] = 0.0
     col_numericas = ['edad_asesor', 'total_dias_absentismo', 'cantidad_cajas', 'metros_cuadrados_tienda', 'venta_t_1', 'venta_t_2', 'venta_t_3', 'valor_venta_asesor_mes_t']
     data_preparada[col_numericas] = min_max_scaler.transform(data_preparada[col_numericas])
 
-    # 4. Inferencia
+    # 4. Inferencia con GBoosting
     X_inferencia = data_preparada.drop(columns=['valor_venta_asesor_mes_t'])
-    Y_pred_normalizado = modelo.predict(X_inferencia)
+    Y_pred_normalizado = modelo_gbc.predict(X_inferencia)
 
     # 5. Transformación inversa
-    temp_array = np.zeros((len(Y_pred_normalizado), len(col_numericas)))
+    temp_array = np.zeros((1, len(col_numericas)))
     indice_target = col_numericas.index('valor_venta_asesor_mes_t')
-    temp_array[:, indice_target] = Y_pred_normalizado
-    Y_pred_pesos = min_max_scaler.inverse_transform(temp_array)[:, indice_target]
+    temp_array[0, indice_target] = Y_pred_normalizado[0]
+    Y_pred_pesos = min_max_scaler.inverse_transform(temp_array)[0, indice_target]
 
-    st.success(f"Predicción en pesos (valor real): ${Y_pred_pesos[0]:,.2f}")
-    st.warning("Se selecciona el MAE y se descarta el MAPE porque la variable objetivo contiene meses donde las ventas fueron cero, este modelo tiene un error de 3.58%")
+    st.success(f"Predicción en pesos (valor real estimado): ${Y_pred_pesos:,.2f} COP")
+    st.info(" Modelo Gradient Boosting implementado. (MAE escalado estimado del modelo: 0.033)")
